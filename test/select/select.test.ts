@@ -10,7 +10,8 @@ import {
   Not,
   getRepository,
 } from "typeorm";
-import { User } from "../create/User";
+import { User } from "../../src/entity/User";
+import { Purchases } from "../../src/entity/Purchases";
 /**
  * find 完整示例
  * userRepository.find({
@@ -30,7 +31,6 @@ import { User } from "../create/User";
 });
  */
 
-
 /**
  * 进阶选项
  * Not、LessThan、MoreThan、Like、Between、In、IsNull 等函数
@@ -45,25 +45,35 @@ describe("ORDER BY、GROUP BY、LIMIT、 DISTINCT、AND、OR、NOT、Like", () =
       // 指示是否在每次应用程序启动时自动创建数据库架构。 请注意此选项，不要在生产环境中使用它，否则将丢失所有生产数据。
       synchronize: true,
       logging: true,
-      entities: [User],
+      entities: [User, Purchases],
     });
     const u1 = new User();
     u1.firstName = "Alice";
     u1.lastName = "A";
     u1.age = 12;
     await connection.manager.save(u1);
+    const p1 = new Purchases();
+    p1.amount = 2;
+    p1.user = u1;
+    await connection.manager.save(p1);
 
     const u2 = new User();
     u2.firstName = "Bob";
     u2.lastName = "B";
     u2.age = 18;
     await connection.manager.save(u2);
+    const p2 = new Purchases();
+    p2.amount = 1;
+    p2.user = u1; // todo save
 
     const u3 = new User();
     u3.firstName = "Clan";
     u3.lastName = "C";
     u3.age = 15;
     await connection.manager.save(u3);
+    const p3 = new Purchases();
+    p3.amount = 5;
+    p3.user = u1;
   });
 
   test("AND", async () => {
@@ -146,5 +156,30 @@ describe("ORDER BY、GROUP BY、LIMIT、 DISTINCT、AND、OR、NOT、Like", () =
       take: 1,
     });
     expect(result).toEqual([{ id: 2, age: 18 }]);
+  });
+
+  test("user update auto sync to purchase", async () => {
+    const userRepository = getRepository(User);
+    const u1 = await userRepository.findOne({
+      where: { id: 1 },
+      relations: ["purchases"],
+    });
+    const newName = "changed name";
+    u1.firstName = newName;
+    await userRepository.save(u1);
+
+    const purchaseRep = getRepository(Purchases);
+    // SELECT "Purchases"."id" AS "Purchases_id", "Purchases"."amount" AS "Purchases_amount", 
+    // "Purchases"."user_id" AS "Purchases_user_id", 
+    // "Purchases__Purchases_user"."id" AS "Purchases__Purchases_user_id", 
+    // "Purchases__Purchases_user"."firstName" AS "Purchases__Purchases_user_firstName", 
+    // "Purchases__Purchases_user"."lastName" AS "Purchases__Purchases_user_lastName", 
+    // "Purchases__Purchases_user"."age" AS "Purchases__Purchases_user_age" FROM "purchases" 
+    // "Purchases" LEFT JOIN "user" "Purchases__Purchases_user" ON "Purchases__Purchases_user"."id" = "Purchases"."user_id" WHERE(("Purchases"."id" = 1) ) AND("Purchases"."id" IN(1))
+    const p1 = await purchaseRep.findOne({
+      where: { id: 1 },
+      relations: ["user"],
+    });
+    expect(p1.user.firstName).toBe(newName);
   });
 });

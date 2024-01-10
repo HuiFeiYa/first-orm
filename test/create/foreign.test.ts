@@ -48,4 +48,29 @@ describe("User and Purchases Relationship", () => {
     }));
     expect(p).toEqual([{ id: purchase.id, amount: purchase.amount }]);
   });
+  it("join", async () => {
+    // 使用 find 似乎智能查询关联表的所有字段
+    await AppDataSource.manager.find(Purchases, {
+      join: {
+        alias: "purchase",
+        leftJoinAndSelect: {
+          user: "purchase.user",
+        },
+      },
+      // 仅仅能筛选 Purchases 表中的字段
+      select: ["id"],
+    });
+
+    // 使用 createQueryBuilder 筛选两张表部分字段
+    const purchases = await AppDataSource.manager
+      .createQueryBuilder()
+      .select("purchase.id", "id")
+      .addSelect("purchase.amount", "amount")
+      .addSelect("user.firstName", "firstName")
+      .from(Purchases, "purchase")
+      .leftJoin(User, "user")
+      .getRawMany();
+
+    console.log(purchases);
+  });
 });
